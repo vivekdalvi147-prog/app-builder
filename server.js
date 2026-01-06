@@ -1,3 +1,4 @@
+cat <<EOF > server.js
 const express = require('express');
 const fileUpload = require('express-fileupload');
 const { exec } = require('child_process');
@@ -8,8 +9,7 @@ const app = express();
 app.use(fileUpload());
 
 app.get('/', (req, res) => {
-    // यहाँ सही बैक-टिक्स (backticks) हैं
-    res.send(`
+    res.send(\`
         <div style="font-family: sans-serif; text-align: center; padding: 20px;">
             <h1>🚀 APK Builder Tool</h1>
             <h3>Upload index.html to create Android App</h3>
@@ -20,38 +20,39 @@ app.get('/', (req, res) => {
             </form>
             <p><small>Process takes 5-10 seconds...</small></p>
         </div>
-    `);
+    \`);
 });
 
 app.post('/build', (req, res) => {
-    if (!req.files || !req.files.htmlFile) {
-        return res.status(400).send('No file uploaded.');
-    }
-
-    const buildId = Date.now();
-    const workDir = path.join(__dirname, 'builds', buildId.toString());
-    const assetsDir = path.join(workDir, 'assets');
-
-    // 1. Folders बनाना
     try {
+        if (!req.files || !req.files.htmlFile) {
+            return res.status(400).send('No file uploaded.');
+        }
+
+        const buildId = Date.now();
+        const workDir = path.join(__dirname, 'builds', buildId.toString());
+        const assetsDir = path.join(workDir, 'assets');
+
+        // 1. Folders बनाना
         fs.ensureDirSync(assetsDir);
 
         // 2. Template APK चेक करना
         if (!fs.existsSync('template.apk')) {
-            return res.send('Error: template.apk missing on server! Please upload it.');
+            return res.send('Error: template.apk missing! Please upload it to GitHub.');
         }
         
         // APK कॉपी करना
         fs.copyFileSync('template.apk', path.join(workDir, 'base.apk'));
 
-        // 3. यूजर की HTML सेव करना
+        // 3. यूजर की HTML सेव करना (Corrected Method)
         const userFile = req.files.htmlFile;
-        userFile.mvSync(path.join(assetsDir, 'index.html'));
+        // यहाँ गलती थी, अब हमने इसे ठीक कर दिया है 👇
+        fs.writeFileSync(path.join(assetsDir, 'index.html'), userFile.data);
 
-        console.log(`Building ID: ${buildId}...`);
+        console.log(\`Building ID: \${buildId}...\`);
 
         // 4. HTML इंजेक्ट करना और साइन करना
-        const cmd = `cd ${workDir} && zip -r base.apk assets/index.html && java -jar ../../uber-apk-signer-1.3.0.jar -a base.apk`;
+        const cmd = \`cd \${workDir} && zip -r base.apk assets/index.html && java -jar ../../uber-apk-signer-1.3.0.jar -a base.apk\`;
 
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
@@ -64,7 +65,7 @@ app.post('/build', (req, res) => {
             if (fs.existsSync(finalApk)) {
                 res.download(finalApk, 'MyNewApp.apk', (err) => {
                     if (!err) {
-                        // 1 मिनट बाद फोल्डर डिलीट करें ताकि सर्वर न भरे
+                        // 1 मिनट बाद फोल्डर डिलीट करें
                         setTimeout(() => fs.remove(workDir), 60000);
                     }
                 });
@@ -82,3 +83,4 @@ app.post('/build', (req, res) => {
 app.listen(3000, () => {
     console.log('Server is running on port 3000 🚀');
 });
+EOF
